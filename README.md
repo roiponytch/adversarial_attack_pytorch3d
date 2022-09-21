@@ -49,3 +49,9 @@ cd mmdetection
 pip install -r requirements/build.txt
 pip install -v -e .
 ```
+
+## Running the code:
+## Download run files:
+```
+https://drive.google.com/drive/folders/11FOrsMEv3xMQCzF6T8elDf7XlwbQkSye?usp=sharing
+```
