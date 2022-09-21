@@ -134,7 +134,7 @@ def n_chess_board(shape=(512, 512,3), divs=8):
 def matplotlib_imshow(img, one_channel=False):
     if one_channel:
         img = img.mean(dim=0)
-    
+
     npimg = img.cpu().numpy()
     if one_channel:
         plt.imshow(npimg, cmap = "Greys")
@@ -149,17 +149,15 @@ def plots_detected(model ,imgs_for_plots, results, score_thr):
         
     # return torch.from_numpy(np.asarray(plots))
     
-
-#%% load mmdetection model
-
-
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-model_config = '/media/Data/hackathon2022/mmdetection/faster_rcnn_r50_fpn_1x_coco.py'
+#%% load mmdetection model
+model_config = 'faster_rcnn_r50_fpn_1x_coco.py'
+model_ckpt ='run_files/checkpoints/faster_rcnn_r50_fpn_1x_coco_20200130-047c8118.pth'
 
-obj_filename = '/media/Data/projects/adversarial_live_demo/dbs/3d_models/person/uploads_files_1837665_GTP_BMan_Jack_07_Stg_Lsn_Adl_Ccs_Gry_Mgr/GTP_BMan_Jack_07_Stg_Lsn_Adl_Ccs_Gry_Mgr.obj'
-# cfg = Config.fromfile(filename = model_config)
-model_ckpt ='/media/Data/hackathon2022/mmdetection/checkpoints/faster_rcnn_r50_fpn_1x_coco_20200130-047c8118.pth'
+obj_filename = 'run_files/dbs/3d_models/person/uploads_files_1837665_GTP_BMan_Jack_07_Stg_Lsn_Adl_Ccs_Gry_Mgr/GTP_BMan_Jack_07_Stg_Lsn_Adl_Ccs_Gry_Mgr.obj'
+
+#%% set fp16 and load a model (object detection)
 fp16 =True
 cfg = Config.fromfile(model_config)
 model = init_detector(model_config, checkpoint=model_ckpt)
@@ -171,7 +169,7 @@ else:
     data_dtype = torch.float
 
 
-# Load obj file
+#%% load 3D model from .obj
 mesh = load_objs_as_meshes([obj_filename], device=device)
 
 # vv,ff,aa =load_obj(obj_filename,load_textures=True,create_texture_atlas=True, texture_atlas_size=4)
@@ -240,18 +238,12 @@ meshes = mesh.extend(num_views)
 # meshes=mesh
 # images = renderer(meshes, cameras=cameras, lights=lights)
 
-divs=16
-mask_w=1024
-mask_h=1024
+# divs=16
+# mask_w=1024
+# mask_h=1024
 
-cb =n_chess_board(shape=(2048,2048,3), divs=divs)
 # mask = torch.from_numpy(cb).type(mesh.textures._maps_padded.dtype).to(device)
-mask = torch.ones((divs**2,3,int(mask_w/divs),int(mask_h/divs)), device=device)
-
-# only green ch:
-mask[:,0]=0
-mask[:,2]=0
-
+# mask = torch.ones((divs**2,3,int(mask_w/divs),int(mask_h/divs)), device=device)
 delta_1 =torch.nn.Parameter( torch.zeros(meshes.textures.maps_padded()[0].shape,requires_grad=True, device=device))
 
 imm=meshes.textures.maps_padded()[0].cpu().detach()
@@ -286,18 +278,21 @@ images = renderer(meshes,cameras = FoVPerspectiveCameras(device=device, R=R[idx[
 masks=images[...,-1]
 n=masks.shape[0]
 
-bbox=n*[torch.zeros((1,4),device=device, dtype=torch.float)]
-bboxes_ignore =n*[torch.zeros(0,device=device, dtype=torch.float)]
-labels=n*[torch.zeros((1),device=device, dtype=torch.int64)]
-for index, msk in enumerate(masks):
-    
+bbox=[]
+bboxes_ignore=[]
+labels=[]
+for index in range(n):
+    msk=masks[index]
     y,x = torch.where(msk>0)
-    
-    bbox[index][0,0] = torch.min(x)
-    bbox[index][0,1] = torch.min(y)
-    bbox[index][0,2] = torch.max(x)
-    bbox[index][0,3] = torch.max(y)
-    labels[index][0] = model.CLASSES.index('person')
+    bbox.append(torch.zeros((1,4),device=device, dtype=torch.float))
+    bboxes_ignore.append(torch.zeros(0,device=device, dtype=torch.float))
+    labels.append(torch.zeros((1), device=device, dtype=torch.int64))
+
+    bbox[-1][0,0] = torch.min(x)
+    bbox[-1][0,1] = torch.min(y)
+    bbox[-1][0,2] = torch.max(x)
+    bbox[-1][0,3] = torch.max(y)
+    labels[-1][0] = model.CLASSES.index('person')
 
 #%%
 
@@ -351,17 +346,31 @@ for i in range(10000000):
     images = renderer(meshes,cameras = FoVPerspectiveCameras(device=device, R=R[idx[0]], T=T[idx[1]]),lights=lights)
     masks=images[...,-1]
     n=masks.shape[0]
-    
 
-    for index, msk in enumerate(masks):
-        
-        y,x = torch.where(msk>0)
-        
-        bbox[index][0,0] = torch.min(x)
-        bbox[index][0,1] = torch.min(y)
-        bbox[index][0,2] = torch.max(x)
-        bbox[index][0,3] = torch.max(y)
-        labels[index][0] = model.CLASSES.index('person')
+    bbox = []
+    bboxes_ignore = []
+    labels = []
+    for index in range(n):
+        msk = masks[index]
+        y, x = torch.where(msk > 0)
+        bbox.append(torch.zeros((1, 4), device=device, dtype=torch.float))
+        bboxes_ignore.append(torch.zeros(0, device=device, dtype=torch.float))
+        labels.append(torch.zeros((1), device=device, dtype=torch.int64))
+
+        bbox[-1][0, 0] = torch.min(x)
+        bbox[-1][0, 1] = torch.min(y)
+        bbox[-1][0, 2] = torch.max(x)
+        bbox[-1][0, 3] = torch.max(y)
+        labels[-1][0] = model.CLASSES.index('person')
+    # for index, msk in enumerate(masks):
+    #
+    #     y,x = torch.where(msk>0)
+    #
+    #     bbox[index][0,0] = torch.min(x)
+    #     bbox[index][0,1] = torch.min(y)
+    #     bbox[index][0,2] = torch.max(x)
+    #     bbox[index][0,3] = torch.max(y)
+    #     labels[index][0] = model.CLASSES.index('person')
 
     input_batch =  images[...,:3].permute([0,-1,1,2]).to(data_dtype).contiguous()
     # model(return_loss=True, rescale=False, **cln_test_batch)
@@ -375,7 +384,7 @@ for i in range(10000000):
     # cln_test_batch['gt_labels'] = labels})
 
     cln_result = model(return_loss=False, rescale=False, **cln_train_batch)
-    adversarial_loss =  sum((-torch.log(1. - (head_scores[:, 0]) + 1e-6)).sum() for head_scores in model.roi_head.bbox_head.scores)
+    adversarial_loss =  sum((-torch.log(1. - (head_scores[:,model.CLASSES.index('person') ]) + 1e-6)).sum() for head_scores in model.roi_head.bbox_head.scores)
     # adversarial_loss = (-torch.log(1. -(model.roi_head.bbox_head.scores[0][:,0]) + 1e-6)).sum()
 
     # adversarial_loss = (-torch.log(1. -(model.roi_head.det_bboxes[0][:,-1]) + 1e-6)).sum()
@@ -388,8 +397,8 @@ for i in range(10000000):
 
     # # loss= -torch.log(F.softmax(model(input_image))[:,847])
     reg_loss = torch.mean(delta_1**2)
-    # loss = adversarial_loss + lambda_coeff*reg_loss
-    loss = adversarial_loss
+    loss = adversarial_loss + lambda_coeff*reg_loss
+    # loss = adversarial_loss
     loss = loss/log_every_n
 
     loss.backward(retain_graph=True)
