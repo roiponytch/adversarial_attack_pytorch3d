@@ -17,7 +17,6 @@ kiwisolver==1.4.4
 Markdown==3.4.1
 MarkupSafe==2.1.1
 matplotlib==3.5.0
-mmcv-full==1.5.0
 numpy==1.23.3
 oauthlib==3.2.1
 opencv-python==4.6.0.66
@@ -45,9 +44,6 @@ tensorboard-plugin-wit==1.8.1
 termcolor==2.0.1
 terminaltables==3.1.10
 tomli==2.0.1
-torch==1.11.0+cu113
-torchaudio==0.11.0+cu113
-torchvision==0.12.0+cu113
 tqdm==4.64.1
 typing_extensions==4.3.0
 urllib3==1.26.12
